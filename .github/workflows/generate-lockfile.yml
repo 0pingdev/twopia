@@ -1,7 +1,7 @@
 name: Generate pnpm-lock.yaml
 
 on:
-  workflow_dispatch: # This allows you to run it manually with a button click
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -19,6 +19,7 @@ jobs:
       - uses: actions/setup-node@v5
         with:
           node-version: 24
+          package-manager-cache: false # <--- THIS IS THE FIX
 
       - name: Generate lockfile
         run: pnpm install --lockfile-only
