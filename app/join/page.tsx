@@ -41,7 +41,7 @@ function JoinForm() {
       // 2. Update the duo with Player B
       const { error: joinError } = await supabase
         .from('duos')
-        .update({ player_b: user.id, status: 'active' })
+        .update({ player_b: user!.id, status: 'active' })
         .eq('id', invite.duo_id)
         .is('player_b', null); // Ensure we don't overwrite an existing player
 
