@@ -84,9 +84,9 @@ export function Dashboard({ user }: { user: User }) {
       ) : duo.status === 'pending' ? (
         <div className="border border-cyan/30 p-8 rounded bg-night/80">
           <h2 className="text-xl mb-4 text-cyan">Waiting for your partner...</h2>
-          <p className="text-sm text-muted mb-6">Send them this code:</p>
-          <div className="text-3xl font-mono tracking-widest text-cream bg-black/50 p-4 rounded mb-4">
-            {inviteCode || 'Loading code...'}
+          <p className="text-sm text-muted mb-6">Send them this link:</p>
+          <div className="text-lg font-mono tracking-widest text-cream bg-black/50 p-4 rounded mb-4 select-all">
+            https://0pingdev.github.io/twopia/join/?code={inviteCode || 'Loading...'}
           </div>
         </div>
       ) : (
