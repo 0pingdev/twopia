@@ -6,16 +6,17 @@ export const metadata: Metadata = {
   description: 'A private world for two people. Games, stories, and a shared home, made together.',
   openGraph: {
     title: 'Twopia',
-    description: 'A world for two.',
+    description: 'A world for two. Utopia, Euphoria, Happy Nostalgia ... Twopia',
     type: 'website',
     images: ['/og.png'],
   },
   twitter: {
     card: 'summary_large_image',
     title: 'Twopia',
-    description: 'A world for two.',
+    description: 'A world for two. Utopia, Euphoria, Happy Nostalgia ... Twopia',
   },
   icons: { icon: '/favicon.svg' },
+  metadataBase: new URL('https://0pingdev.github.io/twopia'),
 };
 
 export const viewport: Viewport = {
