@@ -54,10 +54,7 @@ export function Scene() {
   const ref = useRef<HTMLCanvasElement>(null);
   usePointerLockSync(ref.current ?? null);
 
-  useEffect(() => {
-    // Re-sync once the ref is definitely mounted.
-    usePointerLockSync(ref.current ?? null);
-  }, []);
+
 
   return (
     <Canvas
