@@ -30,7 +30,7 @@ function JoinForm() {
       const { data: invite, error: inviteError } = await supabase
         .from('invitations')
         .select('duo_id')
-        .eq('code', code.toUpperCase())
+        .eq('code', code!.toUpperCase())
         .single();
 
       if (inviteError || !invite) {
@@ -51,7 +51,7 @@ function JoinForm() {
       }
 
       // 3. Clean up the invite
-      await supabase.from('invitations').delete().eq('code', code.toUpperCase());
+      await supabase.from('invitations').delete().eq('code', code!.toUpperCase());
       
       setStatus('Success! Your Duo is connected.');
       setTimeout(() => router.push('/'), 2000);
