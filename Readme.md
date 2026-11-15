@@ -1,7 +1,7 @@
 # Twopia
 
-Your utpoia, euphoria and happy nostalgia with Twopia.
 A world for two. A private space where two people play games, read stories, and build a shared home together.
+> Your utopia, euphoria and happy nostalgia with Twopia.
 
 ## Stack
 - Next.js 15 (App Router, static export)
