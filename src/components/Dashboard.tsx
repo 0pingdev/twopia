@@ -13,7 +13,7 @@ export function Dashboard({ user }: { user: User }) {
   useEffect(() => {
     async function loadData() {
       // 1. Fetch Profile
-      const { data: p } = await supabase.from('profiles').select('*').eq('id', user.id).single();
+      const { data: p } = await supabase.from('profiles').select('*').eq('id', user.id).maybeSingle();
       setProfile(p);
 
       // 2. Fetch Duo (where I am Player A or Player B)
