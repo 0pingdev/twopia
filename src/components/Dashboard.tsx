@@ -29,16 +29,30 @@ export function Dashboard({ user }: { user: User }) {
     loadData();
   }, [user.id]);
 
+  const [errorMsg, setErrorMsg] = useState('');
+
   const createDuo = async () => {
+    setErrorMsg('');
     const { data: newDuo, error } = await supabase
       .from('duos')
       .insert({ player_a: user.id })
       .select()
       .single();
       
+    if (error) {
+      setErrorMsg(error.message);
+      return;
+    }
+
     if (newDuo) {
       const code = Math.random().toString(36).substring(2, 8).toUpperCase();
-      await supabase.from('invitations').insert({ code, duo_id: newDuo.id });
+      const { error: inviteError } = await supabase.from('invitations').insert({ code, duo_id: newDuo.id });
+      
+      if (inviteError) {
+        setErrorMsg(inviteError.message);
+        return;
+      }
+
       setInviteCode(code);
       setDuo(newDuo);
     }
@@ -55,6 +69,10 @@ export function Dashboard({ user }: { user: User }) {
       </h1>
       <p className="text-muted mb-8">{user.email}</p>
 
+      <!-- Added to show error -->
+      {errorMsg && <p className="text-red-500 mb-4">{errorMsg}</p>}
+
+      
       {!duo ? (
         <div className="border border-amber/30 p-8 rounded bg-night/80">
           <h2 className="text-xl mb-4 text-amber">You are alone in Twopia.</h2>
