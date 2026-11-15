@@ -69,7 +69,7 @@ export function Dashboard({ user }: { user: User }) {
       </h1>
       <p className="text-muted mb-8">{user.email}</p>
 
-      <!-- Added to show error -->
+            {/* Added to show error */}
       {errorMsg && <p className="text-red-500 mb-4">{errorMsg}</p>}
 
       
