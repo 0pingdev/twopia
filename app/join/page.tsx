@@ -38,27 +38,32 @@ function JoinForm() {
         return;
       }
 
-      // 2. Update the duo with Player B
-      const { error: joinError } = await supabase
+      // 2. Update the duo
+      const { data: updatedDuo, error: joinError } = await supabase
         .from('duos')
         .update({ player_b: user!.id, status: 'active' })
         .eq('id', invite.duo_id)
-        .is('player_b', null); // Ensure we don't overwrite an existing player
+        .select();
 
       if (joinError) {
-        setError('Could not join. The Duo might already be full.');
+        setError(`Database error: ${joinError.message}`);
+        return;
+      }
+
+      if (!updatedDuo || updatedDuo.length === 0) {
+        setError('This Duo is already full or no longer pending.');
         return;
       }
 
       // 3. Clean up the invite
       await supabase.from('invitations').delete().eq('code', code!.toUpperCase());
       
-      setStatus('Success! Your Duo is connected.');
-      setTimeout(() => router.push('/'), 2000);
+      setStatus('Success! Your Duo is connected. Redirecting...');
+      setTimeout(() => window.location.href = '/', 2000);
     }
 
     joinDuo();
-  }, [user, loading, code, router]);
+  }, [user, loading, code]);
 
   return (
     <div className="fixed inset-0 z-10 flex flex-col items-center justify-center text-center px-6 bg-night/90 backdrop-blur-md">
