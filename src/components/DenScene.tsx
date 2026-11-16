@@ -2,7 +2,7 @@
 
 import { useRef, useMemo } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
-import { OrbitControls, Box, Sphere, Plane, Stars } from '@react-three/drei';
+import { OrbitControls, Stars } from '@react-three/drei';
 import * as THREE from 'three';
 
 function Embers() {
@@ -62,9 +62,8 @@ export function DenScene() {
 
         {/* The Centerpiece (The Thread Core) */}
         <mesh position={[0, 1.5, 0]}>
-          <Sphere args={[0.6, 32, 32]}>
-            <meshStandardMaterial color="#ff7a1a" emissive="#ff7a1a" emissiveIntensity={3} toneMapped={false} />
-          </mesh>
+          <sphereGeometry args={[0.6, 32, 32]} />
+          <meshStandardMaterial color="#ff7a1a" emissive="#ff7a1a" emissiveIntensity={3} toneMapped={false} />
         </mesh>
         <pointLight position={[0, 1.5, 0]} intensity={8} color="#ff7a1a" distance={6} />
 
@@ -72,9 +71,10 @@ export function DenScene() {
         {[0, 1, 2, 3, 4, 5].map((i) => {
           const angle = (i / 6) * Math.PI * 2;
           return (
-            <Box key={i} args={[0.4, 4, 0.4]} position={[Math.cos(angle) * 5.5, 2, Math.sin(angle) * 5.5]}>
+            <mesh key={i} position={[Math.cos(angle) * 5.5, 2, Math.sin(angle) * 5.5]}>
+              <boxGeometry args={[0.4, 4, 0.4]} />
               <meshStandardMaterial color="#1c1028" roughness={0.8} />
-            </Box>
+            </mesh>
           );
         })}
 
