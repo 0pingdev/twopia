@@ -3,8 +3,10 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { User } from '@supabase/supabase-js';
+import { useRouter } from 'next/navigation';
 
 export function Dashboard({ user }: { user: User }) {
+  const router = useRouter();
   const [profile, setProfile] = useState<any>(null);
   const [duo, setDuo] = useState<any>(null);
   const [loading, setLoading] = useState(true);
