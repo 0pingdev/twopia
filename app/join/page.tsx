@@ -25,11 +25,11 @@ function JoinForm() {
       return;
     }
 
-    async function joinDuo() {
-      // 1. Find the invitation
+    async function requestJoin() {
+      // 1. Check if code is valid and unclaimed
       const { data: invite, error: inviteError } = await supabase
-        .from('invitations')
-        .select('duo_id')
+        .from('invites')
+        .select('creator_id, claimed_by')
         .eq('code', code!.toUpperCase())
         .single();
 
@@ -37,47 +37,40 @@ function JoinForm() {
         setError('Invalid or expired invite code.');
         return;
       }
-
-      // 2. Update the duo
-      const { data: updatedDuo, error: joinError } = await supabase
-        .from('duos')
-        .update({ player_b: user!.id, status: 'active' })
-        .eq('id', invite.duo_id)
-        .select();
-
-      if (joinError) {
-        setError(`Database error: ${joinError.message}`);
-        return;
-      }
-
-      if (!updatedDuo || updatedDuo.length === 0) {
-        setError('This Duo is already full or no longer pending.');
-        return;
-      }
-
-      // 3. Clean up the invite
-      await supabase.from('invitations').delete().eq('code', code!.toUpperCase());
       
-      setStatus('Success! Your Duo is connected. Redirecting...');
-      setTimeout(() => window.location.href = '/', 2000);
+      if (invite.claimed_by === user!.id) {
+        setStatus('You have already requested to join. Waiting for them to accept.');
+        return;
+      }
+      
+      if (invite.claimed_by) {
+        setError('This invite has already been claimed by someone else.');
+        return;
+      }
+
+      // 2. Claim the invite (does NOT create the duo yet!)
+      const { error: claimError } = await supabase
+        .from('invites')
+        .update({ claimed_by: user!.id })
+        .eq('code', code!.toUpperCase());
+
+      if (claimError) {
+        setError(`Error: ${claimError.message}`);
+        return;
+      }
+
+      setStatus('Request sent! Your partner must log in and accept it. Redirecting home...');
+      setTimeout(() => window.location.href = '/', 3000);
     }
 
-    joinDuo();
+    requestJoin();
   }, [user, loading, code]);
 
   return (
     <div className="fixed inset-0 z-10 flex flex-col items-center justify-center text-center px-6 bg-night/90 backdrop-blur-md">
-      <h1 className="text-4xl mb-4 text-amber" style={{ fontFamily: 'var(--font-serif)' }}>
-        Twopia
-      </h1>
-      {error ? (
-        <p className="text-red-500 mb-6">{error}</p>
-      ) : (
-        <p className="text-xl text-cream mb-6">{status}</p>
-      )}
-      <button onClick={() => router.push('/')} className="px-6 py-2 border border-muted text-muted hover:text-cream uppercase tracking-widest text-xs">
-        Go to Home
-      </button>
+      <h1 className="text-4xl mb-4 text-amber" style={{ fontFamily: 'var(--font-serif)' }}>Twopia</h1>
+      {error ? <p className="text-red-500 mb-6">{error}</p> : <p className="text-xl text-cream mb-6">{status}</p>}
+      <button onClick={() => router.push('/')} className="px-6 py-2 border border-muted text-muted hover:text-cream uppercase tracking-widest text-xs">Go to Home</button>
     </div>
   );
 }
