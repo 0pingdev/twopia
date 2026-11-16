@@ -117,7 +117,7 @@ export function Dashboard({ user }: { user: User }) {
         <div className="border border-amber/20 p-8 rounded-lg bg-night/60 backdrop-blur-md w-96 flex flex-col items-center justify-center min-h-[300px]">
           <h2 className="text-xl mb-4 text-amber font-serif italic">Your Mini-Den</h2>
           <p className="text-sm text-muted mb-8">Your personal 3D space. Coming in Sprint 2.X.</p>
-          <button className="px-8 py-4 border border-amber/50 text-amber/50 uppercase tracking-widest text-xs cursor-not-allowed">
+          <button onClick={() => router.push('/den')} className="px-8 py-4 border border-amber/50 text-amber uppercase tracking-widest text-xs hover:bg-amber/10 transition" >
             Enter Mini-Den
           </button>
         </div>
