@@ -10,48 +10,32 @@ export function Dashboard({ user }: { user: User }) {
   const [loading, setLoading] = useState(true);
   const [inviteCode, setInviteCode] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
+  
+  // New state for the Join feature
+  const [inputCode, setInputCode] = useState('');
+  const [isJoining, setIsJoining] = useState(false);
 
   useEffect(() => {
     async function loadData() {
       try {
         setErrorMsg('');
-        
-        // 1. Fetch Profile
-        const { data: p, error: pError } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', user.id)
-          .maybeSingle();
-        
-        if (pError) throw pError;
+        const { data: p } = await supabase.from('profiles').select('*').eq('id', user.id).maybeSingle();
         setProfile(p);
 
-        // 2. Fetch Duo (using .limit(1) instead of maybeSingle to prevent 406 errors)
-        const { data: dArray, error: dError } = await supabase
+        const { data: dArray } = await supabase
           .from('duos')
           .select('*')
           .or(`player_a.eq.${user.id},player_b.eq.${user.id}`)
           .limit(1);
         
-        if (dError) throw dError;
-
         const currentDuo = dArray && dArray.length > 0 ? dArray[0] : null;
         setDuo(currentDuo);
 
-        // 3. If Duo exists and is pending, fetch the invite code!
         if (currentDuo && currentDuo.status === 'pending') {
-          const { data: invite, error: iError } = await supabase
-            .from('invitations')
-            .select('code')
-            .eq('duo_id', currentDuo.id)
-            .maybeSingle();
-          
-          if (invite) {
-            setInviteCode(invite.code);
-          }
+          const { data: invite } = await supabase.from('invitations').select('code').eq('duo_id', currentDuo.id).maybeSingle();
+          if (invite) setInviteCode(invite.code);
         }
       } catch (err: any) {
-        console.error(err);
         setErrorMsg('Failed to load data. Please refresh.');
       } finally {
         setLoading(false);
@@ -63,35 +47,54 @@ export function Dashboard({ user }: { user: User }) {
   const createDuo = async () => {
     setErrorMsg('');
     setLoading(true);
-    
-    const { data: newDuo, error } = await supabase
-      .from('duos')
-      .insert({ player_a: user.id })
-      .select()
-      .single();
-      
-    if (error) {
-      setErrorMsg(error.message);
-      setLoading(false);
-      return;
-    }
+    const { data: newDuo, error } = await supabase.from('duos').insert({ player_a: user.id }).select().single();
+    if (error) { setErrorMsg(error.message); setLoading(false); return; }
 
     if (newDuo) {
       const code = Math.random().toString(36).substring(2, 8).toUpperCase();
-      const { error: inviteError } = await supabase
-        .from('invitations')
-        .insert({ code, duo_id: newDuo.id });
-      
-      if (inviteError) {
-        setErrorMsg(inviteError.message);
-        setLoading(false);
-        return;
-      }
-
+      await supabase.from('invitations').insert({ code, duo_id: newDuo.id });
       setInviteCode(code);
       setDuo(newDuo);
       setLoading(false);
     }
+  };
+
+  const joinDuoWithCode = async () => {
+    if (!inputCode.trim()) return;
+    setIsJoining(true);
+    setErrorMsg('');
+
+    // 1. Find the invite
+    const { data: invite, error: inviteError } = await supabase
+      .from('invitations')
+      .select('duo_id')
+      .eq('code', inputCode.trim().toUpperCase())
+      .single();
+
+    if (inviteError || !invite) {
+      setErrorMsg('Invalid invite code.');
+      setIsJoining(false);
+      return;
+    }
+
+    // 2. Join the duo
+    const { error: joinError } = await supabase
+      .from('duos')
+      .update({ player_b: user.id, status: 'active' })
+      .eq('id', invite.duo_id)
+      .is('player_b', null);
+
+    if (joinError) {
+      setErrorMsg('Could not join. The Duo might already be full.');
+      setIsJoining(false);
+      return;
+    }
+
+    // 3. Delete invite and refresh state
+    await supabase.from('invitations').delete().eq('code', inputCode.trim().toUpperCase());
+    
+    // Reload page to show connected state
+    window.location.reload(); 
   };
 
   const signOut = () => supabase.auth.signOut();
@@ -108,24 +111,47 @@ export function Dashboard({ user }: { user: User }) {
       {errorMsg && <p className="text-red-500 mb-4">{errorMsg}</p>}
 
       {!duo ? (
-        <div className="border border-amber/30 p-8 rounded bg-night/80">
-          <h2 className="text-xl mb-4 text-amber">You are alone in Twopia.</h2>
-          <p className="text-sm text-muted mb-6">Create an invite link to bring your partner into your world.</p>
-          <button onClick={createDuo} className="px-6 py-3 border border-amber text-amber text-xs uppercase tracking-widest hover:bg-amber/10 transition-colors">
-            Generate Invite Code
-          </button>
+        <div className="flex flex-col md:flex-row gap-6">
+          {/* CREATE DUO */}
+          <div className="border border-amber/30 p-8 rounded bg-night/80 w-80">
+            <h2 className="text-xl mb-4 text-amber">Create a Duo</h2>
+            <p className="text-sm text-muted mb-6 h-10">Generate a code to send to your partner.</p>
+            <button onClick={createDuo} className="w-full px-6 py-3 border border-amber text-amber text-xs uppercase tracking-widest hover:bg-amber/10 transition-colors">
+              Generate Code
+            </button>
+          </div>
+
+          {/* JOIN DUO */}
+          <div className="border border-cyan/30 p-8 rounded bg-night/80 w-80">
+            <h2 className="text-xl mb-4 text-cyan">Join a Duo</h2>
+            <p className="text-sm text-muted mb-6 h-10">Enter the code your partner sent you.</p>
+            <input 
+              type="text" 
+              placeholder="CODE" 
+              value={inputCode}
+              onChange={(e) => setInputCode(e.target.value.toUpperCase())}
+              maxLength={6}
+              className="w-full bg-black/50 border border-cyan/30 text-cream text-center tracking-widest text-lg p-3 rounded mb-4 outline-none focus:border-cyan"
+            />
+            <button 
+              onClick={joinDuoWithCode} 
+              disabled={isJoining || inputCode.length < 6}
+              className="w-full px-6 py-3 border border-cyan text-cyan text-xs uppercase tracking-widest hover:bg-cyan/10 transition-colors disabled:opacity-50"
+            >
+              {isJoining ? 'Joining...' : 'Join'}
+            </button>
+          </div>
         </div>
       ) : duo.status === 'pending' ? (
         <div className="border border-cyan/30 p-8 rounded bg-night/80">
           <h2 className="text-xl mb-4 text-cyan">Waiting for your partner...</h2>
-          <p className="text-sm text-muted mb-6">Send them this link:</p>
-          {inviteCode ? (
-            <div className="text-lg font-mono tracking-widest text-cream bg-black/50 p-4 rounded mb-4 select-all">
-              https://0pingdev.github.io/twopia/join/?code={inviteCode}
-            </div>
-          ) : (
-            <div className="text-sm text-red-500 mb-4">Could not load invite code.</div>
-          )}
+          <p className="text-sm text-muted mb-6">Send them this link (or the code):</p>
+          <div className="text-lg font-mono tracking-widest text-cream bg-black/50 p-4 rounded mb-4 select-all">
+            https://0pingdev.github.io/twopia/join/?code={inviteCode}
+          </div>
+          <div className="text-3xl font-mono tracking-widest text-amber">
+            {inviteCode}
+          </div>
         </div>
       ) : (
         <div className="border border-amber/30 p-8 rounded bg-night/80">
