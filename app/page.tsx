@@ -6,7 +6,8 @@ import { Dashboard } from '@/components/Dashboard';
 import { DevOverlay } from '@/components/DevOverlay';
 import { useAuth } from '@/lib/useAuth';
 
-const Scene = dynamic(() => import('@/components/Scene').then((m) => m.Scene), {
+// Lazy load the 3D scene to avoid SSR issues
+const DenScene = dynamic(() => import('@/components/DenScene').then((m) => m.DenScene), {
   ssr: false,
 });
 
@@ -14,11 +15,16 @@ export default function Home() {
   const { user, loading } = useAuth();
 
   return (
-    <main>
-      <Scene />
-      {!loading && !user && <Landing />}
-      {!loading && user && <Dashboard user={user} />}
-      <DevOverlay />
+    <main className="relative w-full h-screen overflow-hidden">
+      {/* The 3D World */}
+      <DenScene />
+
+      {/* The UI Overlays */}
+      <div className="relative z-10 w-full h-full pointer-events-none">
+        {!loading && !user && <Landing />}
+        {!loading && user && <Dashboard user={user} />}
+        <DevOverlay />
+      </div>
     </main>
   );
 }
