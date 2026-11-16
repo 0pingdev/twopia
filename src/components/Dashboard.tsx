@@ -59,12 +59,11 @@ export function Dashboard({ user }: { user: User }) {
     }
   };
 
-  const joinDuoWithCode = async () => {
+    const joinDuoWithCode = async () => {
     if (!inputCode.trim()) return;
     setIsJoining(true);
     setErrorMsg('');
 
-    // 1. Find the invite
     const { data: invite, error: inviteError } = await supabase
       .from('invitations')
       .select('duo_id')
@@ -77,23 +76,28 @@ export function Dashboard({ user }: { user: User }) {
       return;
     }
 
-    // 2. Join the duo
-    const { error: joinError } = await supabase
+    // ADDED .select() to verify the update actually happened
+    const { data: updatedDuo, error: joinError } = await supabase
       .from('duos')
       .update({ player_b: user.id, status: 'active' })
       .eq('id', invite.duo_id)
-      .is('player_b', null);
+      .select();
 
     if (joinError) {
-      setErrorMsg('Could not join. The Duo might already be full.');
+      setErrorMsg(`Database error: ${joinError.message}`);
       setIsJoining(false);
       return;
     }
 
-    // 3. Delete invite and refresh state
+    if (!updatedDuo || updatedDuo.length === 0) {
+      setErrorMsg('Could not join. The Duo is already full.');
+      setIsJoining(false);
+      return;
+    }
+
     await supabase.from('invitations').delete().eq('code', inputCode.trim().toUpperCase());
     
-    // Reload page to show connected state
+    // HARD RELOAD to ensure the dashboard fetches the new active Duo
     window.location.reload(); 
   };
 
