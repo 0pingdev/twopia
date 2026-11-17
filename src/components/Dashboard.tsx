@@ -15,6 +15,7 @@ export function Dashboard({ user }: { user: User }) {
   const [loading, setLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState('');
   
+  const [showDuoMenu, setShowDuoMenu] = useState(false);
   const [joinCode, setJoinCode] = useState('');
   const [myInvite, setMyInvite] = useState<any>(null);
   const [incomingRequest, setIncomingRequest] = useState<any>(null);
@@ -23,7 +24,6 @@ export function Dashboard({ user }: { user: User }) {
 
   // Sprint 3.0 Networking State
   const [doorStatus, setDoorStatus] = useState<DoorStatus>('solo');
-  const [partnerOnline, setPartnerOnline] = useState(false);
   const netRef = useRef<DuoNetwork | null>(null);
 
   useEffect(() => {
@@ -37,33 +37,15 @@ export function Dashboard({ user }: { user: User }) {
     const partnerId = duo.player_a === user.id ? duo.player_b : duo.player_a;
 
     const net = new DuoNetwork(user.id, partnerId, {
-      onKnock: (fromId) => {
-        // Someone is knocking on my door
-        setDoorStatus('incoming_knock');
-      },
-      onKnockAccepted: (hostId) => {
-        // My knock was accepted, I am now visiting them
-        setDoorStatus('visiting');
-      },
-      onKnockRejected: () => {
-        // My knock was rejected
-        setDoorStatus('knockable');
-      },
-      onPeerMove: (x, y, z) => {
-        // Received partner movement (Handled in DenScene via a different mechanism later, for now ignore)
-      },
-      onPeerLeave: () => {
-        // Partner left my lobby
-        setDoorStatus('knockable');
-      }
+      onKnock: (fromId) => setDoorStatus('incoming_knock'),
+      onKnockAccepted: (hostId) => setDoorStatus('visiting'),
+      onKnockRejected: () => setDoorStatus('knockable'),
+      onPeerMove: (x, y, z) => {}, // Handled in DenScene later
+      onPeerLeave: () => setDoorStatus('knockable')
     });
 
     netRef.current = net;
-
-    // Poll for partner presence (since we are doing this without robust presence tracking yet)
-    // A better way is to use net.onPresence, but for now we just mark them as "knockable" if they are online
-    // (We will refine this in Sprint 3.1)
-    setDoorStatus('knockable');
+    setDoorStatus('knockable'); // Assume partner is online for now
 
     return () => {
       net.disconnect();
@@ -102,11 +84,46 @@ export function Dashboard({ user }: { user: User }) {
   };
 
   // --- Actions ---
+  const generateInvite = async () => {
+    const code = Math.random().toString(36).substring(2, 8).toUpperCase();
+    await supabase.from('invites').insert({ code, creator_id: user.id });
+    fetchData();
+  };
+
+  const acceptRequest = async () => {
+    setErrorMsg('');
+    const { error } = await supabase.rpc('accept_invite', { invite_code: incomingRequest.code });
+    if (error) setErrorMsg(error.message);
+    else {
+      setShowDuoMenu(false);
+      fetchData();
+    }
+  };
+
+  const rejectRequest = async () => {
+    await supabase.from('invites').update({ claimed_by: null }).eq('code', incomingRequest.code);
+    fetchData();
+  };
+
+  const cancelInvite = async () => {
+    await supabase.from('invites').delete().eq('code', myInvite.code);
+    fetchData();
+  };
+
+  const claimCode = async () => {
+    if (!joinCode.trim()) return;
+    setErrorMsg('');
+    const { data: invite } = await supabase.from('invites').select('*').eq('code', joinCode.toUpperCase()).single();
+    if (!invite) { setErrorMsg('Invalid code.'); return; }
+    if (invite.claimed_by) { setErrorMsg('Code already claimed.'); return; }
+    await supabase.from('invites').update({ claimed_by: user.id }).eq('code', joinCode.toUpperCase());
+    setJoinCode('');
+    fetchData();
+  };
+
   const handleDoorInteract = () => {
     if (doorStatus === 'solo') {
-      // Open the pairing menu
-      setErrorMsg('');
-      // trigger UI state for menu
+      setShowDuoMenu(true);
     } 
     else if (doorStatus === 'knockable') {
       netRef.current?.sendKnock();
@@ -126,17 +143,12 @@ export function Dashboard({ user }: { user: User }) {
     setIsNearDoor(dist < 2.5);
   };
 
-  // UI Helpers
-  const duoStatus = duo ? (doorStatus === 'solo' ? 'knockable' : doorStatus) : 'solo';
-  const showPairingMenu = doorStatus === 'solo' && isNearDoor; 
-  const showDoorPrompt = doorStatus !== 'solo' && isNearDoor;
-
   if (loading) return <div className="flex items-center justify-center h-full text-amber font-serif italic text-2xl">Loading Twopia...</div>;
 
   return (
     <div className="relative w-full h-full overflow-hidden">
       <DenScene 
-        duoStatus={duoStatus} 
+        duoStatus={doorStatus} 
         onDoorInteract={handleDoorInteract} 
         playerColor={playerColor} 
         onPositionUpdate={handlePositionUpdate}
@@ -175,10 +187,10 @@ export function Dashboard({ user }: { user: User }) {
         </div>
 
         {/* PROXIMITY BUTTON (Fallback for clicking the door) */}
-        {isNearDoor && (
+        {isNearDoor && !showDuoMenu && (
           <div className="absolute bottom-32 left-1/2 -translate-x-1/2 pointer-events-auto">
             {doorStatus === 'solo' && (
-              <button onClick={() => { setErrorMsg(''); setShowDuoMenu(true); }} className="px-8 py-4 bg-amber text-night font-bold uppercase tracking-widest rounded shadow-[0_0_20px_rgba(255,176,112,0.5)]">
+              <button onClick={handleDoorInteract} className="px-8 py-4 bg-amber text-night font-bold uppercase tracking-widest rounded shadow-[0_0_20px_rgba(255,176,112,0.5)]">
                 Find a Duo
               </button>
             )}
@@ -210,8 +222,59 @@ export function Dashboard({ user }: { user: User }) {
           </div>
         )}
 
-        {/* Duo Panel Overlay (Only show when solo and menu is open) */}
-        {/* (I have omitted the menu code for brevity here, keep your existing menu logic. Just make sure it only shows if doorStatus === 'solo') */}
+        {/* THE PAIRING MENU OVERLAY */}
+        {showDuoMenu && (
+          <div className="pointer-events-auto mb-8 w-96 bg-night/90 backdrop-blur-xl border border-amber/20 rounded-xl p-6 shadow-2xl mx-auto relative">
+            <h2 className="text-xl mb-4 text-amber font-serif italic text-center">Duo Status</h2>
+            {errorMsg && <p className="text-red-500 text-xs text-center mb-2">{errorMsg}</p>}
+
+            {duo ? (
+              <div className="text-center">
+                <p className="text-amber mb-2 uppercase tracking-widest text-xs">Paired</p>
+                <p className="text-muted text-xs mb-4">You are connected!</p>
+                <button onClick={() => setShowDuoMenu(false)} className="w-full py-2 border border-amber text-amber uppercase tracking-widest text-xs hover:bg-amber/10 transition">
+                  Close
+                </button>
+              </div>
+            ) : incomingRequest ? (
+              <div className="text-center">
+                <p className="text-cyan mb-2 font-serif text-lg">{incomingRequest.claimerName}</p>
+                <p className="text-muted text-xs mb-6">wants to join your Duo.</p>
+                <div className="flex gap-3">
+                  <button onClick={acceptRequest} className="flex-1 py-2 border border-amber text-amber hover:bg-amber/10 text-xs uppercase">Accept</button>
+                  <button onClick={rejectRequest} className="flex-1 py-2 border border-red-500/50 text-red-500 hover:bg-red-500/10 text-xs uppercase">Reject</button>
+                </div>
+              </div>
+            ) : myInvite ? (
+              <div className="text-center w-full">
+                <p className="text-muted text-xs mb-4">Send this link:</p>
+                <div className="text-xs font-mono text-cream bg-black/50 p-3 rounded mb-4 break-all select-all">
+                  https://0pingdev.github.io/twopia/join/?code={myInvite.code}
+                </div>
+                <button onClick={cancelInvite} className="text-xs text-muted hover:text-red-500 underline">Cancel</button>
+              </div>
+            ) : (
+              <div className="flex flex-col gap-4 w-full">
+                <button onClick={generateInvite} className="w-full py-3 border border-cyan text-cyan text-xs uppercase tracking-widest hover:bg-cyan/10">Generate Invite Link</button>
+                
+                <div className="flex items-center gap-2 my-1">
+                  <div className="h-px bg-cyan/20 flex-1"></div>
+                  <span className="text-muted text-[10px] uppercase">OR</span>
+                  <div className="h-px bg-cyan/20 flex-1"></div>
+                </div>
+
+                <div className="flex gap-2">
+                  <input value={joinCode} onChange={(e) => setJoinCode(e.target.value.toUpperCase())} placeholder="ENTER CODE" maxLength={6} className="w-full bg-black/40 border border-cyan/30 text-cyan text-center tracking-widest p-2 rounded outline-none text-xs" />
+                  <button onClick={claimCode} className="px-4 border border-cyan text-cyan hover:bg-cyan/10 uppercase text-xs">Join</button>
+                </div>
+              </div>
+            )}
+            
+            {!duo && (
+              <button onClick={() => setShowDuoMenu(false)} className="absolute top-4 right-4 text-muted hover:text-cream">✕</button>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );
