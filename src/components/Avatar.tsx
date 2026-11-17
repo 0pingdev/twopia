@@ -4,9 +4,22 @@ import { useRef, useEffect, useState } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 
-export function Avatar({ color, isMe, positionRef, cameraRef, onIdleChange }: { color: string, isMe: boolean, positionRef: React.MutableRefObject<THREE.Vector3>, cameraRef: React.MutableRefObject<any>, onIdleChange?: (idle: boolean) => void }) {
+export function Avatar({ 
+  color, 
+  isMe, 
+  positionRef, 
+  cameraRef, 
+  onIdleChange 
+}: { 
+  color: string, 
+  isMe: boolean, 
+  positionRef: React.MutableRefObject<THREE.Vector3>, 
+  cameraRef: React.MutableRefObject<any>,
+  onIdleChange?: (idle: boolean) => void 
+}) {
   const group = useRef<THREE.Group>(null);
   const lightRef = useRef<THREE.PointLight>(null);
+  
   const [keys, setKeys] = useState<{ [key: string]: boolean }>({});
   const lastMoveTime = useRef(Date.now());
   const [isIdle, setIsIdle] = useState(false);
@@ -28,10 +41,10 @@ export function Avatar({ color, isMe, positionRef, cameraRef, onIdleChange }: { 
     };
   }, [isMe, isIdle, onIdleChange]);
 
-   useFrame((state, delta) => {
+  useFrame((state, delta) => {
     if (!group.current) return;
 
-    // 1. Check for AFK
+    // 1. Check for AFK (2 seconds of no movement)
     if (isMe && Date.now() - lastMoveTime.current > 2000 && !isIdle) {
       setIsIdle(true);
       onIdleChange?.(true);
@@ -39,6 +52,8 @@ export function Avatar({ color, isMe, positionRef, cameraRef, onIdleChange }: { 
 
     // 2. Movement Logic (Only for me)
     if (isMe && !isIdle) {
+      if (!cameraRef.current) return; // Wait for camera to mount
+
       const speed = 4 * delta;
       const forward = new THREE.Vector3();
       cameraRef.current.getWorldDirection(forward);
@@ -58,6 +73,7 @@ export function Avatar({ color, isMe, positionRef, cameraRef, onIdleChange }: { 
         moveDir.normalize();
         positionRef.current.addScaledVector(moveDir, speed);
 
+        // Rotate to face movement
         const targetAngle = Math.atan2(moveDir.x, moveDir.z);
         let diff = targetAngle - group.current.rotation.y;
         while (diff > Math.PI) diff -= Math.PI * 2;
@@ -66,7 +82,7 @@ export function Avatar({ color, isMe, positionRef, cameraRef, onIdleChange }: { 
       }
     }
 
-    // 3. Boundary Check
+    // 3. Boundary Check (Stay inside platform)
     const maxRadius = 5.2;
     const dist = Math.sqrt(positionRef.current.x ** 2 + positionRef.current.z ** 2);
     if (dist > maxRadius) {
@@ -92,7 +108,7 @@ export function Avatar({ color, isMe, positionRef, cameraRef, onIdleChange }: { 
       }
     }
   });
-  
+
   return (
     <group ref={group}>
       <mesh position={[0, 0.5, 0]} castShadow>
