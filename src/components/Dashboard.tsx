@@ -5,17 +5,24 @@ import { supabase } from '@/lib/supabase';
 import { User } from '@supabase/supabase-js';
 import { DenScene } from './DenScene';
 
+const COLORS = ['#ffb070', '#4fd1ff', '#a855f7', '#10b981', '#f43f5e'];
+
 export function Dashboard({ user }: { user: User }) {
   const [profile, setProfile] = useState<any>(null);
   const [duo, setDuo] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState('');
-
-  // Duo Management States
+  
   const [showDuoMenu, setShowDuoMenu] = useState(false);
   const [joinCode, setJoinCode] = useState('');
   const [myInvite, setMyInvite] = useState<any>(null);
   const [incomingRequest, setIncomingRequest] = useState<any>(null);
+
+  // Avatar Color State
+  const [playerColor, setPlayerColor] = useState(COLORS[0]);
+  
+  // Proximity State
+  const [isNearDoor, setIsNearDoor] = useState(false);
 
   useEffect(() => {
     fetchData();
@@ -35,7 +42,6 @@ export function Dashboard({ user }: { user: User }) {
       setIncomingRequest(null);
     } else {
       setDuo(null);
-      // Check outgoing invites
       const { data: i } = await supabase.from('invites').select('*').eq('creator_id', user.id).maybeSingle();
       if (i) {
         if (i.claimed_by) {
@@ -54,7 +60,6 @@ export function Dashboard({ user }: { user: User }) {
     setLoading(false);
   };
 
-  // --- Actions ---
   const generateInvite = async () => {
     const code = Math.random().toString(36).substring(2, 8).toUpperCase();
     await supabase.from('invites').insert({ code, creator_id: user.id });
@@ -84,44 +89,41 @@ export function Dashboard({ user }: { user: User }) {
   const claimCode = async () => {
     if (!joinCode.trim()) return;
     setErrorMsg('');
-    
-    // Check if code exists
     const { data: invite } = await supabase.from('invites').select('*').eq('code', joinCode.toUpperCase()).single();
-    if (!invite) {
-      setErrorMsg('Invalid code.');
-      return;
-    }
-    if (invite.claimed_by) {
-      setErrorMsg('This code has already been claimed.');
-      return;
-    }
-
-    // Claim it
+    if (!invite) { setErrorMsg('Invalid code.'); return; }
+    if (invite.claimed_by) { setErrorMsg('Code already claimed.'); return; }
     await supabase.from('invites').update({ claimed_by: user.id }).eq('code', joinCode.toUpperCase());
     setJoinCode('');
     fetchData();
   };
 
-  // --- Interaction ---
-  const duoStatus = duo ? 'online' : 'solo'; // Placeholder until we add presence sync to the Door
+  const duoStatus = duo ? 'online' : 'solo';
 
   const handleDoorInteract = () => {
     if (duoStatus === 'solo') {
       setShowDuoMenu(true);
-    } else if (duoStatus === 'online') {
+    } else {
       alert('Partner Visit logic coming in Sprint 3.1!');
     }
+  };
+
+  // Callback to check proximity from the 3D scene
+  const handlePositionUpdate = (dist: number) => {
+    // If we are within 2.5 units of the door, show the button
+    setIsNearDoor(dist < 2.5);
   };
 
   if (loading) return <div className="flex items-center justify-center h-full text-amber font-serif italic text-2xl">Loading Twopia...</div>;
 
   return (
     <div className="relative w-full h-full overflow-hidden">
-      
-      {/* 3D Background */}
-      <DenScene duoStatus={duoStatus} onDoorInteract={handleDoorInteract} />
+      <DenScene 
+        duoStatus={duoStatus} 
+        onDoorInteract={handleDoorInteract} 
+        playerColor={playerColor} 
+        onPositionUpdate={handlePositionUpdate}
+      />
 
-      {/* HUD Overlay */}
       <div className="absolute inset-0 z-10 flex flex-col justify-between p-8 pointer-events-none">
         
         {/* Top Header */}
@@ -131,15 +133,42 @@ export function Dashboard({ user }: { user: User }) {
               {profile?.gamer_name || 'Traveler'}
             </h1>
             <p className="text-cyan text-xs tracking-widest uppercase mt-1 shadow-black drop-shadow-md">
-              {duo ? 'Shared Lobby' : 'Solo Lobby'}
+              Solo Lobby
             </p>
           </div>
-          <button onClick={() => supabase.auth.signOut()} className="pointer-events-auto text-xs text-muted hover:text-cream underline transition-colors">
-            Sign Out
-          </button>
+          
+          <div className="pointer-events-auto flex flex-col items-end gap-4">
+            <button onClick={() => supabase.auth.signOut()} className="text-xs text-muted hover:text-cream underline transition-colors">
+              Sign Out
+            </button>
+            
+            {/* Color Picker */}
+            <div className="flex gap-2 bg-night/50 p-2 rounded-lg border border-amber/20 backdrop-blur-md">
+              {COLORS.map(c => (
+                <button 
+                  key={c} 
+                  onClick={() => setPlayerColor(c)}
+                  className={`w-6 h-6 rounded-full transition-transform ${playerColor === c ? 'scale-125 ring-2 ring-white' : 'hover:scale-110'}`}
+                  style={{ backgroundColor: c }}
+                />
+              ))}
+            </div>
+          </div>
         </div>
 
-        {/* Duo Panel (Shows up when you click the door or have an incoming request) */}
+        {/* PROXIMITY BUTTON (Fallback for clicking the door) */}
+        {isNearDoor && !showDuoMenu && !incomingRequest && (
+          <div className="absolute bottom-32 left-1/2 -translate-x-1/2 pointer-events-auto">
+            <button 
+              onClick={handleDoorInteract}
+              className="px-8 py-4 bg-amber text-night font-bold uppercase tracking-widest rounded shadow-[0_0_20px_rgba(255,176,112,0.5)] hover:scale-105 transition-transform"
+            >
+              {duoStatus === 'solo' ? 'Find a Duo' : 'Visit Partner'}
+            </button>
+          </div>
+        )}
+
+        {/* Duo Panel Overlay */}
         {(showDuoMenu || incomingRequest) && (
           <div className="pointer-events-auto mb-8 w-96 bg-night/90 backdrop-blur-xl border border-amber/20 rounded-xl p-6 shadow-2xl mx-auto relative">
             <h2 className="text-xl mb-4 text-amber font-serif italic text-center">Duo Status</h2>
@@ -181,19 +210,12 @@ export function Dashboard({ user }: { user: User }) {
                 </div>
 
                 <div className="flex gap-2">
-                  <input 
-                    value={joinCode} 
-                    onChange={(e) => setJoinCode(e.target.value.toUpperCase())} 
-                    placeholder="ENTER CODE" 
-                    maxLength={6}
-                    className="w-full bg-black/40 border border-cyan/30 text-cyan text-center tracking-widest p-2 rounded outline-none text-xs" 
-                  />
+                  <input value={joinCode} onChange={(e) => setJoinCode(e.target.value.toUpperCase())} placeholder="ENTER CODE" maxLength={6} className="w-full bg-black/40 border border-cyan/30 text-cyan text-center tracking-widest p-2 rounded outline-none text-xs" />
                   <button onClick={claimCode} className="px-4 border border-cyan text-cyan hover:bg-cyan/10 uppercase text-xs">Join</button>
                 </div>
               </div>
             )}
             
-            {/* Absolute close button for convenience */}
             {!duo && (
               <button onClick={() => setShowDuoMenu(false)} className="absolute top-4 right-4 text-muted hover:text-cream">✕</button>
             )}
