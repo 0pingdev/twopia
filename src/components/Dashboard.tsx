@@ -1,11 +1,16 @@
 'use client';
 
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, Suspense } from 'react';
 import { supabase } from '@/lib/supabase';
 import { User } from '@supabase/supabase-js';
-import { DenScene } from './DenScene';
 import { DuoNetwork } from '@/lib/net';
 import * as THREE from 'three';
+import dynamic from 'next/dynamic';
+
+const DenScene = dynamic(() => import('./DenScene').then((mod) => mod.DenScene), {
+  ssr: false,
+  loading: () => <div className="flex items-center justify-center h-full text-amber font-serif italic text-2xl">Loading World...</div>
+});
 
 const COLORS = ['#ffb070', '#4fd1ff', '#a855f7', '#10b981', '#f43f5e'];
 
@@ -133,18 +138,21 @@ export function Dashboard({ user }: { user: User }) {
 
   return (
     <div className="relative w-full h-full overflow-hidden">
-      <DenScene 
-        duoStatus={displayDoorStatus} 
-        onDoorInteract={handleDoorInteract} 
-        playerColor={playerColor} 
-        onPositionUpdate={(dist) => setIsNearDoor(dist < 2.5)}
-        partnerPosRef={partnerPosRef}
-        partnerOnline={partnerOnline}
-        onPlayerMove={handlePlayerMove}
-        isNetworkActive={isNetworkActive}
-        onIdleChange={(idle) => setIsPlayerIdle(idle)} // <--- Pass AFK state
-      />
-
+      
+      <Suspense fallback={<div className="flex items-center justify-center h-full text-amber font-serif italic text-2xl">Loading World...</div>}>
+        <DenScene 
+          duoStatus={displayDoorStatus} 
+          onDoorInteract={handleDoorInteract} 
+          playerColor={playerColor} 
+          onPositionUpdate={(dist) => setIsNearDoor(dist < 2.5)}
+          partnerPosRef={partnerPosRef}
+          partnerOnline={partnerOnline}
+          onPlayerMove={handlePlayerMove}
+          isNetworkActive={isNetworkActive}
+          onIdleChange={(idle) => setIsPlayerIdle(idle)}
+        />
+      </Suspense>
+      
       {/* HUD code remains exactly the same, no changes needed here! */}
       <div className="absolute inset-0 z-10 flex flex-col justify-between p-8 pointer-events-none">
         
