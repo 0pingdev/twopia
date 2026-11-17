@@ -48,17 +48,6 @@ function CameraRig({ target, cameraRef }: { target: React.MutableRefObject<THREE
   return null;
 }
 
-// Inner component to handle 60fps interpolation of the partner
-function PartnerSync({ targetPos, currentPos, isVisible }: { targetPos: React.MutableRefObject<THREE.Vector3>, currentPos: React.MutableRefObject<THREE.Vector3>, isVisible: boolean }) {
-  useFrame(() => {
-    if (isVisible) {
-      // Smoothly glide the avatar to the network position
-      currentPos.current.lerp(targetPos.current, 0.15);
-    }
-  });
-  return null;
-}
-
 export function DenScene({ 
   duoStatus, 
   onDoorInteract, 
@@ -84,10 +73,13 @@ export function DenScene({
   const cameraRef = useRef<any>(null);
   const lastNetSend = useRef(0);
 
+  // This is where we now handle BOTH network throttling AND partner interpolation
   useFrame((state) => {
+    // 1. Update own position / door proximity
     const doorPos = new THREE.Vector3(0, 0, -4);
     onPositionUpdate(myPos.current.distanceTo(doorPos));
     
+    // 2. Broadcast movement (30Hz throttle)
     if (isNetworkActive) {
       const now = state.clock.getElapsedTime();
       if (now - lastNetSend.current > 0.033) { 
@@ -99,7 +91,6 @@ export function DenScene({
 
   return (
     <div className="absolute inset-0 z-0">
-      {/* dpr=[1, 1.5] caps the pixel ratio to stop Retina displays from melting the GPU */}
       <Canvas dpr={[1, 1.5]} camera={{ position: [0, 3, 8], fov: 50 }}>
         <color attach="background" args={['#05060a']} />
         <fog attach="fog" args={['#05060a', 5, 25]} />
@@ -107,7 +98,6 @@ export function DenScene({
         <ambientLight intensity={1.5} color="#4fd1ff" />
         <directionalLight position={[5, 10, 5]} intensity={2} color="#ffb070" />
 
-        {/* Reduced stars from 2000 to 500 */}
         <Stars radius={50} depth={20} count={500} factor={4} saturation={0} fade speed={1} />
 
         <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0, 0]} receiveShadow>
@@ -117,13 +107,12 @@ export function DenScene({
 
         <DuoDoor status={duoStatus} onInteract={onDoorInteract} />
 
+        {/* Me */}
         <Avatar color={playerColor} isMe={true} positionRef={myPos} cameraRef={cameraRef} onIdleChange={onIdleChange} />
         
+        {/* Partner */}
         {partnerOnline && (
-          <>
-            <Avatar color="#4fd1ff" isMe={false} positionRef={partnerPosRef} cameraRef={cameraRef} />
-            <PartnerSync targetPos={partnerPosRef} currentPos={partnerPosRef} isVisible={true} />
-          </>
+          <Avatar color="#4fd1ff" isMe={false} positionRef={partnerPosRef} cameraRef={cameraRef} />
         )}
 
         <CameraRig target={myPos} cameraRef={cameraRef} />
