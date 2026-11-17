@@ -28,16 +28,16 @@ export function Avatar({ color, isMe, positionRef, cameraRef, onIdleChange }: { 
     };
   }, [isMe, isIdle, onIdleChange]);
 
-  useFrame((state, delta) => {
+   useFrame((state, delta) => {
     if (!group.current) return;
 
-    // 1. Check for AFK (2 seconds of no movement)
+    // 1. Check for AFK
     if (isMe && Date.now() - lastMoveTime.current > 2000 && !isIdle) {
       setIsIdle(true);
       onIdleChange?.(true);
     }
 
-    // 2. Movement Logic
+    // 2. Movement Logic (Only for me)
     if (isMe && !isIdle) {
       const speed = 4 * delta;
       const forward = new THREE.Vector3();
@@ -58,7 +58,6 @@ export function Avatar({ color, isMe, positionRef, cameraRef, onIdleChange }: { 
         moveDir.normalize();
         positionRef.current.addScaledVector(moveDir, speed);
 
-        // Rotate to face movement
         const targetAngle = Math.atan2(moveDir.x, moveDir.z);
         let diff = targetAngle - group.current.rotation.y;
         while (diff > Math.PI) diff -= Math.PI * 2;
@@ -67,7 +66,7 @@ export function Avatar({ color, isMe, positionRef, cameraRef, onIdleChange }: { 
       }
     }
 
-    // 3. Boundary Check (Stay inside platform)
+    // 3. Boundary Check
     const maxRadius = 5.2;
     const dist = Math.sqrt(positionRef.current.x ** 2 + positionRef.current.z ** 2);
     if (dist > maxRadius) {
@@ -76,19 +75,24 @@ export function Avatar({ color, isMe, positionRef, cameraRef, onIdleChange }: { 
       positionRef.current.z = Math.sin(angle) * maxRadius;
     }
 
-    // 4. Apply Position & Idle Breathing
-    group.current.position.copy(positionRef.current);
+    // 4. Apply Position (LERP for smooth network movement)
+    if (isMe) {
+      group.current.position.copy(positionRef.current);
+    } else {
+      // If it's the partner, glide to their position
+      group.current.position.lerp(positionRef.current, 0.15);
+    }
     
+    // 5. Idle Breathing
     if (lightRef.current) {
       if (isIdle) {
-        // Breathe the light if AFK
         lightRef.current.intensity = 1 + Math.sin(state.clock.elapsedTime * 2) * 0.5;
       } else {
         lightRef.current.intensity = 2;
       }
     }
   });
-
+  
   return (
     <group ref={group}>
       <mesh position={[0, 0.5, 0]} castShadow>
