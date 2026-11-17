@@ -56,7 +56,7 @@ export function DenScene({
   playerColor,
   onPositionUpdate
 }: { 
-  duoStatus: 'solo' | 'online' | 'offline', 
+  duoStatus: string,
   onDoorInteract: () => void, 
   playerColor: string,
   onPositionUpdate: (dist: number) => void 
