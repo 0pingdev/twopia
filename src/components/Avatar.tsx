@@ -4,33 +4,45 @@ import { useRef, useEffect, useState } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 
-// Basic Toon Avatar built from primitives
-export function Avatar({ color, isMe, positionRef, cameraRef }: { color: string, isMe: boolean, positionRef: React.MutableRefObject<THREE.Vector3>, cameraRef: React.MutableRefObject<any> }) {
+export function Avatar({ color, isMe, positionRef, cameraRef, onIdleChange }: { color: string, isMe: boolean, positionRef: React.MutableRefObject<THREE.Vector3>, cameraRef: React.MutableRefObject<any>, onIdleChange?: (idle: boolean) => void }) {
   const group = useRef<THREE.Group>(null);
+  const lightRef = useRef<THREE.PointLight>(null);
   const [keys, setKeys] = useState<{ [key: string]: boolean }>({});
+  const lastMoveTime = useRef(Date.now());
+  const [isIdle, setIsIdle] = useState(false);
 
-  // Handle Keyboard Input for local player
   useEffect(() => {
     if (!isMe) return;
-    const down = (e: KeyboardEvent) => setKeys((k) => ({ ...k, [e.code]: true }));
+    const down = (e: KeyboardEvent) => {
+      setKeys((k) => ({ ...k, [e.code]: true }));
+      lastMoveTime.current = Date.now();
+      if (isIdle) { setIsIdle(false); onIdleChange?.(false); }
+    };
     const up = (e: KeyboardEvent) => setKeys((k) => ({ ...k, [e.code]: false }));
+    
     window.addEventListener('keydown', down);
     window.addEventListener('keyup', up);
     return () => {
       window.removeEventListener('keydown', down);
       window.removeEventListener('keyup', up);
     };
-  }, [isMe]);
+  }, [isMe, isIdle, onIdleChange]);
 
   useFrame((state, delta) => {
     if (!group.current) return;
 
-    if (isMe) {
-      // 1. Calculate movement direction relative to Camera
+    // 1. Check for AFK (2 seconds of no movement)
+    if (isMe && Date.now() - lastMoveTime.current > 2000 && !isIdle) {
+      setIsIdle(true);
+      onIdleChange?.(true);
+    }
+
+    // 2. Movement Logic
+    if (isMe && !isIdle) {
       const speed = 4 * delta;
       const forward = new THREE.Vector3();
       cameraRef.current.getWorldDirection(forward);
-      forward.y = 0; // Flatten to ground
+      forward.y = 0;
       forward.normalize();
 
       const right = new THREE.Vector3();
@@ -44,13 +56,10 @@ export function Avatar({ color, isMe, positionRef, cameraRef }: { color: string,
 
       if (moveDir.lengthSq() > 0) {
         moveDir.normalize();
-        
-        // 2. Move the Ref
         positionRef.current.addScaledVector(moveDir, speed);
 
-        // 3. Rotate Avatar to face movement direction
+        // Rotate to face movement
         const targetAngle = Math.atan2(moveDir.x, moveDir.z);
-        // Smooth rotation
         let diff = targetAngle - group.current.rotation.y;
         while (diff > Math.PI) diff -= Math.PI * 2;
         while (diff < -Math.PI) diff += Math.PI * 2;
@@ -58,7 +67,7 @@ export function Avatar({ color, isMe, positionRef, cameraRef }: { color: string,
       }
     }
 
-    // 4. Boundary Check (Glitch Proofing - stay inside the hexagon)
+    // 3. Boundary Check (Stay inside platform)
     const maxRadius = 5.2;
     const dist = Math.sqrt(positionRef.current.x ** 2 + positionRef.current.z ** 2);
     if (dist > maxRadius) {
@@ -67,24 +76,30 @@ export function Avatar({ color, isMe, positionRef, cameraRef }: { color: string,
       positionRef.current.z = Math.sin(angle) * maxRadius;
     }
 
-    // 5. Apply to actual mesh
+    // 4. Apply Position & Idle Breathing
     group.current.position.copy(positionRef.current);
+    
+    if (lightRef.current) {
+      if (isIdle) {
+        // Breathe the light if AFK
+        lightRef.current.intensity = 1 + Math.sin(state.clock.elapsedTime * 2) * 0.5;
+      } else {
+        lightRef.current.intensity = 2;
+      }
+    }
   });
 
   return (
     <group ref={group}>
-      {/* Body */}
       <mesh position={[0, 0.5, 0]} castShadow>
         <capsuleGeometry args={[0.3, 0.6, 16, 32]} />
         <meshStandardMaterial color={color} roughness={0.4} metalness={0.2} />
       </mesh>
-      {/* Head */}
       <mesh position={[0, 1.3, 0]} castShadow>
         <sphereGeometry args={[0.35, 32, 32]} />
         <meshStandardMaterial color="#e8e2d6" roughness={0.8} />
       </mesh>
-      {/* Aura Glow */}
-      <pointLight position={[0, 1, 0]} intensity={2} color={color} distance={3} />
+      <pointLight ref={lightRef} position={[0, 1, 0]} intensity={2} color={color} distance={3} />
     </group>
   );
 }
