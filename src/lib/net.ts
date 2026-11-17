@@ -6,6 +6,7 @@ export type NetEvents = {
   onKnockRejected: () => void;
   onPeerMove: (x: number, y: number, z: number) => void;
   onPeerLeave: () => void;
+  onKicked: () => void; // <--- Added this
 };
 
 export class DuoNetwork {
@@ -13,14 +14,12 @@ export class DuoNetwork {
   private myId: string;
   private partnerId: string;
   private events: NetEvents;
-  private moveInterval: any;
 
   constructor(myId: string, partnerId: string, events: NetEvents) {
     this.myId = myId;
     this.partnerId = partnerId;
     this.events = events;
 
-    // We create a unique channel based on the sorted IDs so both players join the same room
     const roomId = [myId, partnerId].sort().join('-');
     this.channel = supabase.channel(`duo_room_${roomId}`, { config: { presence: { key: myId } } });
 
@@ -34,6 +33,7 @@ export class DuoNetwork {
       .on('broadcast', { event: 'reject' }, () => this.events.onKnockRejected())
       .on('broadcast', { event: 'move' }, (payload: any) => this.events.onPeerMove(payload.payload.x, payload.payload.y, payload.payload.z))
       .on('broadcast', { event: 'leave' }, () => this.events.onPeerLeave())
+      .on('broadcast', { event: 'kick' }, () => this.events.onKicked()) // <--- Added listener
       .subscribe((status: string) => {
         if (status === 'SUBSCRIBED') {
           console.log('Connected to Duo Network');
@@ -41,14 +41,12 @@ export class DuoNetwork {
       });
   }
 
-  public startSendingMovement(positionRef: React.MutableRefObject<{ x: number, y: number, z: number }>) {
-    this.moveInterval = setInterval(() => {
-      this.channel.send({
-        type: 'broadcast',
-        event: 'move',
-        payload: { x: positionRef.current.x, y: positionRef.current.y, z: positionRef.current.z }
-      });
-    }, 100); // 10 times a second
+  public sendMove(x: number, y: number, z: number) {
+    this.channel.send({
+      type: 'broadcast',
+      event: 'move',
+      payload: { x, y, z }
+    });
   }
 
   public sendKnock() {
@@ -67,8 +65,11 @@ export class DuoNetwork {
     this.channel.send({ type: 'broadcast', event: 'leave', payload: {} });
   }
 
+  public kick() { // <--- Added method
+    this.channel.send({ type: 'broadcast', event: 'kick', payload: {} });
+  }
+
   public disconnect() {
-    if (this.moveInterval) clearInterval(this.moveInterval);
     supabase.removeChannel(this.channel);
   }
 }
