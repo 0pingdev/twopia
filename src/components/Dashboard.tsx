@@ -54,6 +54,12 @@ export function Dashboard({ user }: { user: User }) {
         setPartnerOnline(false);
         setIsVisiting(false);
         setDoorStatus('knockable');
+      },
+      onKicked: () => {
+        // I was visiting, but the host kicked me out
+        setIsVisiting(false);
+        setPartnerOnline(false);
+        setDoorStatus('knockable');
       }
     });
 
