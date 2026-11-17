@@ -4,8 +4,6 @@ import { useRef, useState, useEffect } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { Stars } from '@react-three/drei';
 import * as THREE from 'three';
-import { supabase } from '@/lib/supabase';
-import { useAuth } from '@/lib/useAuth';
 import { Avatar } from './Avatar';
 import { DuoDoor } from './DuoDoor';
 
@@ -50,65 +48,67 @@ function CameraRig({ target, cameraRef }: { target: React.MutableRefObject<THREE
   return null;
 }
 
+// Inner component to handle 60fps interpolation of the partner
+function PartnerSync({ targetPos, currentPos, isVisible }: { targetPos: React.MutableRefObject<THREE.Vector3>, currentPos: React.MutableRefObject<THREE.Vector3>, isVisible: boolean }) {
+  useFrame(() => {
+    if (isVisible) {
+      // Smoothly glide the avatar to the network position
+      currentPos.current.lerp(targetPos.current, 0.15);
+    }
+  });
+  return null;
+}
+
 export function DenScene({ 
   duoStatus, 
   onDoorInteract, 
   playerColor,
-  onPositionUpdate
+  onPositionUpdate,
+  partnerPosRef,
+  partnerOnline,
+  onPlayerMove,
+  isNetworkActive,
+  onIdleChange
 }: { 
-  duoStatus: string,
+  duoStatus: string, 
   onDoorInteract: () => void, 
   playerColor: string,
-  onPositionUpdate: (dist: number) => void 
+  onPositionUpdate: (dist: number) => void,
+  partnerPosRef: React.MutableRefObject<THREE.Vector3>,
+  partnerOnline: boolean,
+  onPlayerMove: (x: number, y: number, z: number) => void,
+  isNetworkActive: boolean,
+  onIdleChange: (idle: boolean) => void
 }) {
-  const { user } = useAuth();
   const myPos = useRef(new THREE.Vector3(0, 0, 2));
-  const partnerPos = useRef(new THREE.Vector3(0, 0, 2));
   const cameraRef = useRef<any>(null);
+  const lastNetSend = useRef(0);
 
-  const [partnerOnline, setPartnerOnline] = useState(false);
-
-  useEffect(() => {
-    if (!user) return;
-    const channel = supabase.channel('lobby_movement', { config: { presence: { key: user.id } } });
-
-    channel
-      .on('presence', { event: 'sync' }, () => {
-        setPartnerOnline(Object.keys(channel.presenceState()).length > 1);
-      })
-      .on('broadcast', { event: 'move' }, (payload) => {
-        partnerPos.current.set(payload.payload.x, payload.payload.y, payload.payload.z);
-      })
-      .subscribe(async (status) => {
-        if (status === 'SUBSCRIBED') {
-          setInterval(() => {
-            channel.send({
-              type: 'broadcast',
-              event: 'move',
-              payload: { x: myPos.current.x, y: myPos.current.y, z: myPos.current.z }
-            });
-            
-            // Calculate distance to the door at [0, 0, -4]
-            const doorPos = new THREE.Vector3(0, 0, -4);
-            const dist = myPos.current.distanceTo(doorPos);
-            onPositionUpdate(dist);
-          }, 100);
-        }
-      });
-
-    return () => { supabase.removeChannel(channel); };
-  }, [user, onPositionUpdate]);
+  useFrame((state) => {
+    const doorPos = new THREE.Vector3(0, 0, -4);
+    onPositionUpdate(myPos.current.distanceTo(doorPos));
+    
+    if (isNetworkActive) {
+      const now = state.clock.getElapsedTime();
+      if (now - lastNetSend.current > 0.033) { 
+        onPlayerMove(myPos.current.x, myPos.current.y, myPos.current.z);
+        lastNetSend.current = now;
+      }
+    }
+  });
 
   return (
     <div className="absolute inset-0 z-0">
-      <Canvas camera={{ position: [0, 3, 8], fov: 50 }}>
+      {/* dpr=[1, 1.5] caps the pixel ratio to stop Retina displays from melting the GPU */}
+      <Canvas dpr={[1, 1.5]} camera={{ position: [0, 3, 8], fov: 50 }}>
         <color attach="background" args={['#05060a']} />
         <fog attach="fog" args={['#05060a', 5, 25]} />
         
         <ambientLight intensity={1.5} color="#4fd1ff" />
         <directionalLight position={[5, 10, 5]} intensity={2} color="#ffb070" />
 
-        <Stars radius={50} depth={20} count={2000} factor={4} saturation={0} fade speed={1} />
+        {/* Reduced stars from 2000 to 500 */}
+        <Stars radius={50} depth={20} count={500} factor={4} saturation={0} fade speed={1} />
 
         <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0, 0]} receiveShadow>
           <cylinderGeometry args={[6, 6, 0.2, 6]} />
@@ -117,9 +117,13 @@ export function DenScene({
 
         <DuoDoor status={duoStatus} onInteract={onDoorInteract} />
 
-        <Avatar color={playerColor} isMe={true} positionRef={myPos} cameraRef={cameraRef} />
+        <Avatar color={playerColor} isMe={true} positionRef={myPos} cameraRef={cameraRef} onIdleChange={onIdleChange} />
+        
         {partnerOnline && (
-          <Avatar color="#4fd1ff" isMe={false} positionRef={partnerPos} cameraRef={cameraRef} />
+          <>
+            <Avatar color="#4fd1ff" isMe={false} positionRef={partnerPosRef} cameraRef={cameraRef} />
+            <PartnerSync targetPos={partnerPosRef} currentPos={partnerPosRef} isVisible={true} />
+          </>
         )}
 
         <CameraRig target={myPos} cameraRef={cameraRef} />
