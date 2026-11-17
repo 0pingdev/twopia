@@ -7,22 +7,21 @@ import * as THREE from 'three';
 import { Avatar } from './Avatar';
 import { DuoDoor } from './DuoDoor';
 
-function CameraRig({ target, cameraRef }: { target: React.MutableRefObject<THREE.Vector3>, cameraRef: React.MutableRefObject<any> }) {
+// --- 1. The Camera Controller ---
+function CameraController({ target }: { target: React.MutableRefObject<THREE.Vector3> }) {
   const { camera } = useThree();
   const [isDragging, setIsDragging] = useState(false);
-  const [angle, setAngle] = useState(Math.PI / 4);
-  const [pitch, setPitch] = useState(0.5);
+  const angle = useRef(Math.PI / 4);
+  const pitch = useRef(0.5);
 
   useEffect(() => {
-    cameraRef.current = camera;
     const handleDown = () => setIsDragging(true);
     const handleUp = () => setIsDragging(false);
     const handleMove = (e: MouseEvent) => {
       if (!isDragging) return;
-      setAngle((a) => a - e.movementX * 0.005);
-      setPitch((p) => Math.max(0.1, Math.min(1.2, p - e.movementY * 0.005)));
+      angle.current -= e.movementX * 0.005;
+      pitch.current = Math.max(0.1, Math.min(1.2, pitch.current - e.movementY * 0.005));
     };
-
     window.addEventListener('mousedown', handleDown);
     window.addEventListener('mouseup', handleUp);
     window.addEventListener('mousemove', handleMove);
@@ -31,16 +30,15 @@ function CameraRig({ target, cameraRef }: { target: React.MutableRefObject<THREE
       window.removeEventListener('mouseup', handleUp);
       window.removeEventListener('mousemove', handleMove);
     };
-  }, [isDragging, camera, cameraRef]);
+  }, [isDragging]);
 
   useFrame(() => {
     const radius = 7;
     const targetPos = new THREE.Vector3(
-      target.current.x + Math.sin(angle) * Math.cos(pitch) * radius,
-      target.current.y + Math.sin(pitch) * radius + 1.5,
-      target.current.z + Math.cos(angle) * Math.cos(pitch) * radius
+      target.current.x + Math.sin(angle.current) * Math.cos(pitch.current) * radius,
+      target.current.y + Math.sin(pitch.current) * radius + 1.5,
+      target.current.z + Math.cos(angle.current) * Math.cos(pitch.current) * radius
     );
-    
     camera.position.lerp(targetPos, 0.1);
     camera.lookAt(target.current.x, target.current.y + 1, target.current.z);
   });
@@ -48,6 +46,46 @@ function CameraRig({ target, cameraRef }: { target: React.MutableRefObject<THREE
   return null;
 }
 
+// --- 2. The Game Loop (Handles networking & proximity) ---
+function GameLoop({ 
+  myPos, 
+  isNetworkActive, 
+  onPlayerMove, 
+  onPositionUpdate 
+}: { 
+  myPos: React.MutableRefObject<THREE.Vector3>, 
+  isNetworkActive: boolean, 
+  onPlayerMove: (x:number, y:number, z:number) => void,
+  onPositionUpdate: (dist: number) => void
+}) {
+  const lastNetSend = useRef(0);
+
+  useFrame((state) => {
+    // Proximity to door
+    const doorPos = new THREE.Vector3(0, 0, -4);
+    onPositionUpdate(myPos.current.distanceTo(doorPos));
+    
+    // Network Broadcast
+    if (isNetworkActive) {
+      const now = state.clock.getElapsedTime();
+      if (now - lastNetSend.current > 0.033) { 
+        onPlayerMove(myPos.current.x, myPos.current.y, myPos.current.z);
+        lastNetSend.current = now;
+      }
+    }
+  });
+
+  return null;
+}
+
+// --- 3. The Camera Binder ---
+function CameraBinder({ cameraRef }: { cameraRef: React.MutableRefObject<any> }) {
+  const { camera } = useThree();
+  useEffect(() => { cameraRef.current = camera; }, [camera, cameraRef]);
+  return null;
+}
+
+// --- 4. The Main Scene ---
 export function DenScene({ 
   duoStatus, 
   onDoorInteract, 
@@ -70,24 +108,7 @@ export function DenScene({
   onIdleChange: (idle: boolean) => void
 }) {
   const myPos = useRef(new THREE.Vector3(0, 0, 2));
-  const cameraRef = useRef<any>(null);
-  const lastNetSend = useRef(0);
-
-  // This is where we now handle BOTH network throttling AND partner interpolation
-  useFrame((state) => {
-    // 1. Update own position / door proximity
-    const doorPos = new THREE.Vector3(0, 0, -4);
-    onPositionUpdate(myPos.current.distanceTo(doorPos));
-    
-    // 2. Broadcast movement (30Hz throttle)
-    if (isNetworkActive) {
-      const now = state.clock.getElapsedTime();
-      if (now - lastNetSend.current > 0.033) { 
-        onPlayerMove(myPos.current.x, myPos.current.y, myPos.current.z);
-        lastNetSend.current = now;
-      }
-    }
-  });
+  const cameraRef = useRef<any>(null); 
 
   return (
     <div className="absolute inset-0 z-0">
@@ -107,15 +128,15 @@ export function DenScene({
 
         <DuoDoor status={duoStatus} onInteract={onDoorInteract} />
 
-        {/* Me */}
         <Avatar color={playerColor} isMe={true} positionRef={myPos} cameraRef={cameraRef} onIdleChange={onIdleChange} />
         
-        {/* Partner */}
         {partnerOnline && (
           <Avatar color="#4fd1ff" isMe={false} positionRef={partnerPosRef} cameraRef={cameraRef} />
         )}
 
-        <CameraRig target={myPos} cameraRef={cameraRef} />
+        <CameraController target={myPos} />
+        <GameLoop myPos={myPos} isNetworkActive={isNetworkActive} onPlayerMove={onPlayerMove} onPositionUpdate={onPositionUpdate} />
+        <CameraBinder cameraRef={cameraRef} />
       </Canvas>
     </div>
   );
