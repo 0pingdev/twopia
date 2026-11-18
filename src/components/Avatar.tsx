@@ -6,12 +6,12 @@ import { useGLTF, Text } from '@react-three/drei';
 import * as THREE from 'three';
 
 // Update the path to the new smaller file
-useGLTF.preload('/models/agnes-small.glb');
+useGLTF.preload('/public/models/agnes-small.glb');
 
 export function Avatar({ 
   color, isMe, positionRef, cameraRef, onIdleChange, joyDir, username 
 }: any) {
-  const { scene } = useGLTF('/models/agnes-small.glb');
+  const { scene } = useGLTF('/public/models/agnes-small.glb');
   const clonedScene = useMemo(() => scene.clone(), [scene]);
 
   const group = useRef<THREE.Group>(null);
