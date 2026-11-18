@@ -144,7 +144,7 @@ export function Dashboard({ user }: { user: User }) {
           duoStatus={displayDoorStatus} 
           onDoorInteract={handleDoorInteract} 
           playerColor={playerColor} 
-          onPositionUpdate={(dist) => setIsNearDoor(dist < 2.5)}
+          onPositionUpdate={(dist: number) => setIsNearDoor(dist < 2.5)}
           partnerPosRef={partnerPosRef}
           partnerOnline={partnerOnline}
           onPlayerMove={handlePlayerMove}
