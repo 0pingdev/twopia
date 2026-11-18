@@ -5,14 +5,16 @@ import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { useGLTF } from '@react-three/drei';
 import * as THREE from 'three';
 import { Avatar } from './Avatar';
+const base = process.env.NEXT_PUBLIC_BASE_PATH || '';
+
 
 // --- 1. The Environment Kit ---
 function Environment() {
   // Load the assets
-  const tree = useGLTF('/models/Tree_RedPlum.gltf');
-  const chair = useGLTF('/models/Chair.gltf');
-  const crate = useGLTF('/models/WoodCrate_L.gltf');
-  const basket = useGLTF('/models/Basket_S.gltf');
+  const tree = useGLTF('${base}/models/Tree_RedPlum.gltf');
+  const chair = useGLTF('${base}/models/Chair.gltf');
+  const crate = useGLTF('${base}/models/WoodCrate_L.gltf');
+  const basket = useGLTF('${base}/models/Basket_S.gltf');
 
   return (
     <group>
@@ -50,7 +52,7 @@ function Environment() {
 
 // --- 2. The Tree Portal ---
 function TreePortal({ status, onInteract }: { status: string, onInteract: () => void }) {
-  const tree = useGLTF('/models/Tree_RedPlum.gltf');
+  const tree = useGLTF('${base}/models/Tree_RedPlum.gltf');
   const glowRef = useRef<THREE.Mesh>(null);
   
   let color = '#ffb070';
