@@ -149,7 +149,7 @@ export function Dashboard({ user }: { user: User }) {
           partnerOnline={partnerOnline}
           onPlayerMove={handlePlayerMove}
           isNetworkActive={isNetworkActive}
-          onIdleChange={(idle) => setIsPlayerIdle(idle)}
+          onIdleChange={(idle: boolean) => setIsPlayerIdle(idle)}
         />
       </Suspense>
       
