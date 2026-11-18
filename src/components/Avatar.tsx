@@ -1,10 +1,9 @@
 'use client';
 
-import { useRef, useEffect, useState, useMemo } from 'react';
+import { useRef, useEffect, useState} from 'react';
 import { useFrame } from '@react-three/fiber';
 import { useGLTF, Text, Clone } from '@react-three/drei';
 import * as THREE from 'three';
-import { SkeletonUtils } from 'three-stdlib'; 
 const base = process.env.NEXT_PUBLIC_BASE_PATH || '';
 
 // Update the path to the new smaller file
