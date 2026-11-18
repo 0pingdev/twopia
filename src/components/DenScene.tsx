@@ -13,7 +13,7 @@ function Environment() {
   // Load the assets
   const tree = useGLTF(`${base}/models/Tree_RedPlum.gltf`);
   const chair = useGLTF(`${base}/models/Chair.gltf`);
-  const crate = useGLTF(`${base}/models/WoodCrate_L.gltf`);
+  const crate = useGLTF(`${base}/models/WoodenCrate_L.gltf`);
   const basket = useGLTF(`${base}/models/Basket_S.gltf`);
 
   return (
