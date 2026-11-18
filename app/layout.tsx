@@ -15,7 +15,7 @@ export const metadata: Metadata = {
     title: 'Twopia',
     description: 'A world for two. Utopia, Euphoria, Happy Nostalgia ... Twopia',
   },
-  icons: { icon: '/favicon.svg' },
+  icons: { icon: `${process.env.NEXT_PUBLIC_BASE_PATH || ''}/favicon.svg` },
   metadataBase: new URL('https://0pingdev.github.io/twopia'),
 };
 
