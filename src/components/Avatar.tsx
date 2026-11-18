@@ -4,15 +4,17 @@ import { useRef, useEffect, useState, useMemo } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { useGLTF, Text } from '@react-three/drei';
 import * as THREE from 'three';
-const base = process.env.NEXT_PUBLIC_BASE_PATH || '';
+//const base = process.env.NEXT_PUBLIC_BASE_PATH || '';
 
 // Update the path to the new smaller file
-useGLTF.preload('${base}/models/agnes-small.glb');
+useGLTF.preload('/public/models/agnes-small.glb');
+//useGLTF.preload('${base}/models/agnes-small.glb');
 
 export function Avatar({ 
   color, isMe, positionRef, cameraRef, onIdleChange, joyDir, username 
 }: any) {
-  const { scene } = useGLTF('${base}/models/agnes-small.glb');
+  //const { scene } = useGLTF('${base}/models/agnes-small.glb');
+  const { scene } = useGLTF('/public/models/agnes-small.glb');
   const clonedScene = useMemo(() => scene.clone(), [scene]);
 
   const group = useRef<THREE.Group>(null);
