@@ -1,22 +1,18 @@
 'use client';
 
-import { useRef, useEffect, useState } from 'react';
+import { useRef, useEffect, useState, useMemo } from 'react';
 import { useFrame } from '@react-three/fiber';
+import { useGLTF, Text } from '@react-three/drei';
 import * as THREE from 'three';
 
+useGLTF.preload('/models/agnes.glb');
+
 export function Avatar({ 
-  color, 
-  isMe, 
-  positionRef, 
-  cameraRef, 
-  onIdleChange 
-}: { 
-  color: string, 
-  isMe: boolean, 
-  positionRef: React.MutableRefObject<THREE.Vector3>, 
-  cameraRef: React.MutableRefObject<any>,
-  onIdleChange?: (idle: boolean) => void 
-}) {
+  color, isMe, positionRef, cameraRef, onIdleChange, joyDir, username 
+}: any) {
+  const { scene } = useGLTF('/models/agnes.glb');
+  const clonedScene = useMemo(() => scene.clone(), [scene]);
+
   const group = useRef<THREE.Group>(null);
   const lightRef = useRef<THREE.PointLight>(null);
   
@@ -44,36 +40,35 @@ export function Avatar({
   useFrame((state, delta) => {
     if (!group.current) return;
 
-    // 1. Check for AFK (2 seconds of no movement)
     if (isMe && Date.now() - lastMoveTime.current > 2000 && !isIdle) {
       setIsIdle(true);
       onIdleChange?.(true);
     }
 
-    // 2. Movement Logic (Only for me)
     if (isMe && !isIdle) {
-      if (!cameraRef.current) return; // Wait for camera to mount
-
+      if (!cameraRef.current) return; 
       const speed = 4 * delta;
       const forward = new THREE.Vector3();
       cameraRef.current.getWorldDirection(forward);
       forward.y = 0;
       forward.normalize();
-
-      const right = new THREE.Vector3();
-      right.crossVectors(forward, new THREE.Vector3(0, 1, 0)).normalize();
-
+      const right = new THREE.Vector3().crossVectors(forward, new THREE.Vector3(0, 1, 0)).normalize();
       const moveDir = new THREE.Vector3();
+
       if (keys['KeyW'] || keys['ArrowUp']) moveDir.add(forward);
       if (keys['KeyS'] || keys['ArrowDown']) moveDir.sub(forward);
       if (keys['KeyD'] || keys['ArrowRight']) moveDir.add(right);
       if (keys['KeyA'] || keys['ArrowLeft']) moveDir.sub(right);
 
+      if (joyDir && (joyDir.x !== 0 || joyDir.y !== 0)) {
+        moveDir.add(forward.clone().multiplyScalar(joyDir.y));
+        moveDir.add(right.clone().multiplyScalar(joyDir.x));
+      }
+
       if (moveDir.lengthSq() > 0) {
         moveDir.normalize();
         positionRef.current.addScaledVector(moveDir, speed);
 
-        // Rotate to face movement
         const targetAngle = Math.atan2(moveDir.x, moveDir.z);
         let diff = targetAngle - group.current.rotation.y;
         while (diff > Math.PI) diff -= Math.PI * 2;
@@ -82,8 +77,7 @@ export function Avatar({
       }
     }
 
-    // 3. Boundary Check (Stay inside platform)
-    const maxRadius = 5.2;
+    const maxRadius = 8.5; // Increased boundary for larger garden
     const dist = Math.sqrt(positionRef.current.x ** 2 + positionRef.current.z ** 2);
     if (dist > maxRadius) {
       const angle = Math.atan2(positionRef.current.z, positionRef.current.x);
@@ -91,15 +85,12 @@ export function Avatar({
       positionRef.current.z = Math.sin(angle) * maxRadius;
     }
 
-    // 4. Apply Position (LERP for smooth network movement)
     if (isMe) {
       group.current.position.copy(positionRef.current);
     } else {
-      // If it's the partner, glide to their position
       group.current.position.lerp(positionRef.current, 0.15);
     }
     
-    // 5. Idle Breathing
     if (lightRef.current) {
       if (isIdle) {
         lightRef.current.intensity = 1 + Math.sin(state.clock.elapsedTime * 2) * 0.5;
@@ -111,14 +102,13 @@ export function Avatar({
 
   return (
     <group ref={group}>
-      <mesh position={[0, 0.5, 0]} castShadow>
-        <capsuleGeometry args={[0.3, 0.6, 16, 32]} />
-        <meshStandardMaterial color={color} roughness={0.4} metalness={0.2} />
-      </mesh>
-      <mesh position={[0, 1.3, 0]} castShadow>
-        <sphereGeometry args={[0.35, 32, 32]} />
-        <meshStandardMaterial color="#e8e2d6" roughness={0.8} />
-      </mesh>
+      <Text position={[0, 2.2, 0]} fontSize={0.2} color={color} anchorX="center" anchorY="middle">
+        {username}
+      </Text>
+
+      {/* The 3D Model. We apply a 0.5 scale and shift it down slightly. */}
+      <primitive object={clonedScene} position={[0, -0.5, 0]} scale={0.5} /> 
+
       <pointLight ref={lightRef} position={[0, 1, 0]} intensity={2} color={color} distance={3} />
     </group>
   );
