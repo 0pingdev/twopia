@@ -5,12 +5,13 @@ import { useFrame } from '@react-three/fiber';
 import { useGLTF, Text } from '@react-three/drei';
 import * as THREE from 'three';
 
-useGLTF.preload('/models/agnes.glb');
+// Update the path to the new smaller file
+useGLTF.preload('/models/agnes-small.glb');
 
 export function Avatar({ 
   color, isMe, positionRef, cameraRef, onIdleChange, joyDir, username 
 }: any) {
-  const { scene } = useGLTF('/models/agnes.glb');
+  const { scene } = useGLTF('/models/agnes-small.glb');
   const clonedScene = useMemo(() => scene.clone(), [scene]);
 
   const group = useRef<THREE.Group>(null);
@@ -77,7 +78,7 @@ export function Avatar({
       }
     }
 
-    const maxRadius = 8.5; // Increased boundary for larger garden
+    const maxRadius = 8.5;
     const dist = Math.sqrt(positionRef.current.x ** 2 + positionRef.current.z ** 2);
     if (dist > maxRadius) {
       const angle = Math.atan2(positionRef.current.z, positionRef.current.x);
@@ -106,8 +107,8 @@ export function Avatar({
         {username}
       </Text>
 
-      {/* The 3D Model. We apply a 0.5 scale and shift it down slightly. */}
-      <primitive object={clonedScene} position={[0, -0.5, 0]} scale={0.5} /> 
+      {/* Adjusted scale for the new agnes-small model */}
+      <primitive object={clonedScene} position={[0, -0.2, 0]} scale={0.6} /> 
 
       <pointLight ref={lightRef} position={[0, 1, 0]} intensity={2} color={color} distance={3} />
     </group>
