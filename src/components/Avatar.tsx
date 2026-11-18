@@ -2,7 +2,7 @@
 
 import { useRef, useEffect, useState, useMemo } from 'react';
 import { useFrame } from '@react-three/fiber';
-import { useGLTF, Text } from '@react-three/drei';
+import { useGLTF, Text, Clone } from '@react-three/drei';
 import * as THREE from 'three';
 import { SkeletonUtils } from 'three-stdlib'; 
 const base = process.env.NEXT_PUBLIC_BASE_PATH || '';
@@ -14,7 +14,6 @@ export function Avatar({
   color, isMe, positionRef, cameraRef, onIdleChange, joyDir, username 
 }: any) {
   const { scene } = useGLTF(`${base}/models/agnes-small.glb`);
-  const clonedScene = useMemo(() => SkeletonUtils.clone(scene), [scene]); 
   const group = useRef<THREE.Group>(null);
   const lightRef = useRef<THREE.PointLight>(null);
   
@@ -109,7 +108,7 @@ export function Avatar({
       </Text>
 
       {/* Adjusted scale for the new agnes-small model */}
-      <primitive object={isMe ? scene : clonedScene} position={[0, 0, 0]} scale={2} />
+      <Clone object={scene} position={[0, 0, 0]} scale={2} />
 
       <pointLight ref={lightRef} position={[0, 1, 0]} intensity={2} color={color} distance={3} />
     </group>
